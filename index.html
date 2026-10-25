@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffd52e">
+<title>Servis Kayıt</title>
+<style>
+:root{--blue:#ffd52e;--text:#1a1a1a;--bg:#fff9d9;--line:#8c8a78;--red:#b00020;--green:#136f2c}
+*{box-sizing:border-box}
+body{margin:0;font:19px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+header{background:var(--blue);color:#1a1a1a;border-bottom:3px solid #1a1a1a;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;font-size:20px}
+header b{font-size:22px}
+main{max-width:520px;margin:0 auto;padding:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:16px}
+h2{margin:0 0 14px;font-size:26px}
+label{display:block;font-weight:700;margin:18px 0 6px;font-size:20px}
+select,input[type=text],input[type=password],textarea{width:100%;font:inherit;min-height:56px;padding:12px 14px;border:2px solid var(--line);border-radius:8px;background:#fff;color:var(--text)}
+textarea{min-height:100px}
+input[type=checkbox]{width:26px;height:26px;flex:none}
+select:disabled{background:#e6e8eb;color:#555}
+:focus-visible{outline:4px solid #1a1a1a;outline-offset:2px}
+.btn{display:block;width:100%;min-height:60px;border:0;border-radius:10px;padding:14px;font:700 21px inherit;font-family:inherit;background:var(--blue);color:#1a1a1a;border:2px solid #1a1a1a;cursor:pointer;margin-top:16px}
+.btn:disabled{opacity:.6}
+.btn.ghost{background:#fff;color:var(--text);border:2px solid #1a1a1a;font-size:20px;font-weight:600}
+.choices{display:grid;gap:14px}
+.choices .btn{min-height:96px;margin:0;font-size:24px}
+.plate{font-size:30px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;text-align:center;min-height:68px}
+.msg{margin-top:14px;font-weight:700;font-size:20px}
+.msg.err{color:var(--red)}.msg.ok{color:var(--green)}
+.hint{font-size:17px;color:#444;margin:8px 0 0}
+img.prev{width:100%;border-radius:8px;margin-top:12px;display:block}
+.rec{border-top:1px solid var(--line);padding:14px 0}
+.rec:first-child{border-top:0}
+.rec .p{font-size:24px;font-weight:700;letter-spacing:.06em}
+.rec small{color:#444;font-size:16px}
+.hidden{display:none}
+#cam{position:fixed;inset:0;background:#000;z-index:50}
+#vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#frame{position:absolute;left:50%;top:38%;width:92%;max-width:520px;aspect-ratio:3.5/1;transform:translate(-50%,-50%);border:4px solid #ffd52e;border-radius:8px;box-shadow:0 0 0 100vmax rgba(0,0,0,.5)}
+#camHint{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 14px);margin:0;text-align:center;color:#fff;font-size:22px;font-weight:700;text-shadow:0 1px 4px #000}
+#camBtns{position:absolute;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px)}
+#cropCv{width:100%;display:block;margin-top:10px;border-radius:8px;touch-action:none;cursor:crosshair}
+</style>
+</head>
+<body>
+<header><b>Servis Kayıt</b><span id="who"></span></header>
+<main>
+
+<section id="vLogin" class="card">
+  <h2>Giriş</h2>
+  <label for="u">Kullanıcı adı</label><input id="u" type="text" autocomplete="username" autocapitalize="none">
+  <label for="pw">Şifre</label><input id="pw" type="password" autocomplete="current-password">
+  <label style="display:flex;gap:10px;align-items:center;font-weight:500;margin-top:12px"><input id="showPw" type="checkbox"> Şifreyi göster</label>
+  <button class="btn" id="bLogin">Giriş yap</button>
+  <div class="msg err" id="loginErr"></div>
+</section>
+
+<section id="vMenu" class="hidden">
+  <div class="card">
+    <h2>Ne yapmak istersin?</h2>
+    <div class="choices">
+      <button class="btn" id="bManual">Elle gir</button>
+      <button class="btn" id="bPhoto">Fotoğraf çek</button>
+    </div>
+  </div>
+  <button class="btn ghost hidden" id="bAdmin">Yönetim paneli</button>
+  <button class="btn ghost" id="bList">Kayıtlı araçlar</button>
+  <button class="btn ghost" id="bOut">Çıkış yap</button>
+</section>
+
+<section id="vForm" class="card hidden">
+  <h2 id="formTitle"></h2>
+  <div id="photoBox" class="hidden">
+    <input id="file" type="file" accept="image/*" capture="environment" class="hidden">
+    <button class="btn" id="bShoot" style="margin-top:0">Plakanın fotoğrafını çek</button>
+    <button class="btn ghost" id="bGallery">Galeriden foto seç</button>
+    <div id="cropBox" class="hidden">
+      <p class="hint">Parmağınla sürükleyerek plakanın etrafına bir kutu çiz. Sadece plaka kutuda kalsın.</p>
+      <canvas id="cropCv"></canvas>
+      <button class="btn" id="bRead">Seçili alanı oku</button>
+    </div>
+    <img id="prev" class="prev hidden" alt="Çekilen fotoğraf">
+    <div class="msg" id="ocrMsg"></div>
+  </div>
+  <label for="plate">Plaka</label>
+  <input id="plate" class="plate" type="text" autocapitalize="characters" autocomplete="off" placeholder="Plaka">
+  <p class="hint" id="plateHint"></p>
+  <label for="brand">Marka</label><select id="brand"></select>
+  <label for="model">Model</label><select id="model" disabled></select>
+  <label for="gen">Jenerasyon</label><select id="gen" disabled></select>
+  <label for="note">Not (isteğe bağlı)</label>
+  <textarea id="note" rows="3" placeholder="Örnek: Ahmetin arabası, su kaçağı var"></textarea>
+  <button class="btn" id="bSave">Kaydet</button>
+  <button class="btn ghost" id="bBack">← Geri dön</button>
+  <div class="msg" id="formMsg"></div>
+</section>
+
+<section id="vList" class="card hidden">
+  <h2>Kayıtlı araçlar</h2>
+  <input id="q" type="text" placeholder="Plaka veya not yaz, ara">
+  <div id="recs"></div>
+  <button class="btn" id="bCsv">CSV olarak indir</button>
+  <button class="btn ghost" id="bBack2">← Geri dön</button>
+</section>
+
+<section id="vAdmin" class="hidden">
+  <div class="card">
+    <h2>Kullanıcı ekle</h2>
+    <label for="aName">Kullanıcı adı</label><input id="aName" type="text" autocapitalize="none" autocomplete="off">
+    <label for="aPass">Şifre</label><input id="aPass" type="text" autocomplete="off">
+    <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="aIsAdmin" type="checkbox" style="width:auto"> Yönetici olsun</label>
+    <button class="btn" id="bAddUser">Kullanıcı ekle</button>
+    <div class="msg" id="uMsg"></div>
+    <div id="uList" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>Araç ekle</h2>
+    <label for="cBrand">Marka</label><input id="cBrand" type="text" list="dlB" autocomplete="off">
+    <label for="cModel">Model</label><input id="cModel" type="text" list="dlM" autocomplete="off">
+    <label for="cGen">Jenerasyon</label><input id="cGen" type="text" autocomplete="off" placeholder="Birden fazla ise virgülle: A, B, C">
+    <datalist id="dlB"></datalist><datalist id="dlM"></datalist>
+    <button class="btn" id="bAddCar">Araç ekle</button>
+    <div class="msg" id="cMsg"></div>
+    <input id="cFilter" type="text" placeholder="Listede ara" style="margin-top:14px">
+    <div id="cList" style="margin-top:8px;max-height:380px;overflow:auto"></div>
+  </div>
+  <button class="btn ghost" id="bBack3">← Geri dön</button>
+</section>
+
+</main>
+<div id="cam" class="hidden">
+  <video id="vid" playsinline muted autoplay></video>
+  <div id="frame"></div>
+  <p id="camHint">Plakayı sarı çerçevenin içine al</p>
+  <div id="camBtns"><button class="btn" id="bSnap">Çek</button><button class="btn ghost" id="bCamX">Vazgeç</button></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
+<script>
+// ---- VARSAYILAN AYARLAR (yönetim panelinden eklenenler tarayıcıda saklanır) ----
+const CAR_DATA = {
+"Opel": {
+ "Astra": "F (1991-98)|G (1998-2004)|H (2004-2014)|J (2009-2015)|K (2015-2021)|L (2021+)",
+ "Corsa": "A (1982-93)|B (1993-2000)|C (2000-2006)|D (2006-2014)|E (2014-2019)|F (2019+)",
+ "Kadett": "E (1984-91)",
+ "Vectra": "A (1988-95)|B (1995-2002)|C (2002-2008)",
+ "Omega": "A (1986-94)|B (1994-2003)",
+ "Tigra": "A (1994-2000)|B (2004-2009)",
+ "Zafira": "A (1999-2005)|B (2005-2014)|C Tourer (2011-2019)|Life (2019+)",
+ "Meriva": "A (2003-2010)|B (2010-2017)",
+ "Signum": "(2003-2008)",
+ "Insignia": "A (2008-2017)|B (2017-2022)",
+ "Mokka": "A (2012-2019)|B (2020+)",
+ "Crossland": "X (2017-2020)|Facelift (2020+)",
+ "Grandland": "X (2017-2021)|Facelift (2021+)",
+ "Combo": "B (1993-2001)|C (2001-2011)|D (2011-2018)|E (2018+)",
+ "Vivaro": "A (2001-2014)|B (2014-2019)|C (2019+)",
+ "Movano": "A (1998-2010)|B (2010-2021)|C (2021+)",
+ "Frontera": "A (1991-98)|B (1998-2004)",
+ "Antara": "(2006-2015)",
+ "Agila": "A (2000-2007)|B (2008-2014)",
+ "Adam": "(2013-2019)",
+ "Cascada": "(2013-2019)"
+},
+"Chevrolet": {
+ "Aveo": "T200 (2002-2008)|T250 (2008-2011)|T300 (2011-2020)",
+ "Kalos": "(2002-2008)",
+ "Lacetti": "(2004-2011)",
+ "Cruze": "J300 (2009-2016)|J400 (2016-2019)",
+ "Epica": "(2006-2011)",
+ "Captiva": "(2006-2018)",
+ "Spark": "M200 (2005-2010)|M300 (2009-2015)|M400 (2015-2022)",
+ "Matiz": "M100 (1998-2005)|M200 (2005-2010)",
+ "Trax": "(2013-2019)",
+ "Orlando": "(2011-2018)",
+ "Camaro": "V (2010-2015)|VI (2016+)"
+},
+"Peugeot": {
+ "106": "(1991-2003)", "107": "(2005-2014)", "108": "(2014-2022)",
+ "205": "(1983-98)", "206": "(1998-2008)", "207": "(2006-2014)",
+ "208": "I (2012-2019)|II (2019+)", "301": "(2012-2022)",
+ "306": "(1993-2002)", "307": "(2001-2008)",
+ "308": "T7 (2007-2013)|T9 (2013-2021)|P5 (2021+)",
+ "309": "(1985-93)", "405": "(1987-96)", "406": "(1995-2004)", "407": "(2004-2011)",
+ "508": "I (2010-2018)|II (2018+)",
+ "2008": "I (2013-2019)|II (2019+)",
+ "3008": "I (2009-2016)|II (2016+)",
+ "5008": "I (2009-2017)|II (2017+)",
+ "4007": "(2007-2012)", "4008": "(2012-2017)", "807": "(2002-2014)", "1007": "(2004-2009)",
+ "RCZ": "(2010-2015)",
+ "Partner": "I (1996-2008)|II (2008-2018)|III (2018+)",
+ "Rifter": "(2018+)", "Bipper": "(2008-2018)",
+ "Expert": "I (1995-2006)|II (2007-2016)|III (2016+)",
+ "Traveller": "(2016+)",
+ "Boxer": "I (1994-2006)|II (2006-2014)|III (2014+)"
+},
+"Citroën": {
+ "Saxo": "(1996-2003)", "ZX": "(1991-98)", "Xsara": "(1997-2005)", "Xsara Picasso": "(1999-2010)",
+ "C1": "I (2005-2014)|II (2014-2022)", "C2": "(2003-2009)",
+ "C3": "I (2002-2009)|II (2009-2016)|III (2016-2024)|IV (2024+)",
+ "C3 Aircross": "(2017-2024)", "C3 Picasso": "(2008-2017)",
+ "C4": "I (2004-2010)|II (2010-2018)|III (2020+)",
+ "C4 Cactus": "(2014-2020)",
+ "C4 Picasso": "I (2006-2013)|II (2013-2022)",
+ "C5": "I (2001-2008)|II (2008-2017)", "C5 Aircross": "(2018+)",
+ "C-Elysée": "(2012-2020)", "C8": "(2002-2014)",
+ "Berlingo": "I (1996-2008)|II (2008-2018)|III (2018+)",
+ "Nemo": "(2008-2018)",
+ "Jumpy": "I (1995-2006)|II (2007-2016)|III (2016+)",
+ "SpaceTourer": "(2016+)",
+ "Jumper": "I (1994-2006)|II (2006-2014)|III (2014+)"
+},
+"DS": {
+ "DS 3": "(2010-2019)", "DS 3 Crossback": "(2018+)",
+ "DS 4": "I (2011-2018)|II (2021+)", "DS 5": "(2011-2018)",
+ "DS 7": "Crossback (2018+)", "DS 9": "(2022+)"
+}
+};
+const DEFAULT_CARS = {};
+for (const b in CAR_DATA) { DEFAULT_CARS[b] = {}; for (const m in CAR_DATA[b]) DEFAULT_CARS[b][m] = CAR_DATA[b][m].split("|"); }
+const SB = { url: "https://fulhhgwqcsqnpaprxbfd.supabase.co", key: "sb_publishable_AuQVRN-u1dqKBBFrfRMy8A_okfcXkbV" };
+async function api(path, opt) {
+  const h = { apikey: SB.key, "Content-Type": "application/json" };
+  if (SB.key.startsWith("eyJ")) h.Authorization = "Bearer " + SB.key;
+  const r = await fetch(SB.url.replace(/\/$/, "") + "/rest/v1/" + path, Object.assign({}, opt, { headers: Object.assign(h, (opt && opt.headers) || {}) }));
+  if (!r.ok) throw new Error(await r.text());
+  return r.json().catch(() => null);
+}
+const rpc = (fn, args) => api("rpc/" + fn, { method: "POST", body: JSON.stringify(args) });
+let TOKEN = "", USERS = [], CARS = {}, DEL = [];
+async function push(k, v) { try { await rpc("ayar_yaz", { tok: TOKEN, p_k: k, p_v: v }); return true; } catch (e) { return false; } }
+function applyDel() {
+  DEL.forEach(k => {
+    const [b, m, g] = k.split("|");
+    if (CARS[b] && CARS[b][m]) {
+      CARS[b][m] = CARS[b][m].filter(x => x !== g);
+      if (!CARS[b][m].length) delete CARS[b][m];
+      if (!Object.keys(CARS[b]).length) delete CARS[b];
+    }
+  });
+}
+async function loadSettings() {
+  const rows = await rpc("ayar_oku", { tok: TOKEN }), m = {};
+  (rows || []).forEach(r => { m[r.k] = r.v; });
+  const sc = m.cars || {};
+  CARS = JSON.parse(JSON.stringify(DEFAULT_CARS));
+  for (const b in sc) for (const mo in sc[b]) {
+    CARS[b] = CARS[b] || {}; CARS[b][mo] = CARS[b][mo] || [];
+    sc[b][mo].forEach(g => { if (!CARS[b][mo].includes(g)) CARS[b][mo].push(g); });
+  }
+  DEL = m.del || []; applyDel();
+}
+function expired(e) {
+  if (String(e && e.message).includes("yetkisiz")) { logout(); $("loginErr").textContent = "Oturum süresi doldu, tekrar giriş yap."; return true; }
+  return false;
+}
+// --------------------------------------------------------------------
+
+const $ = id => document.getElementById(id);
+const views = ["vLogin", "vMenu", "vForm", "vList", "vAdmin"];
+const show = v => views.forEach(x => $(x).classList.toggle("hidden", x !== v));
+let user = null, isAdmin = false, mode = null;
+
+function load() { try { return JSON.parse(localStorage.getItem("kayitlar") || "[]"); } catch (e) { return []; } }
+function store(a) { try { localStorage.setItem("kayitlar", JSON.stringify(a)); return true; } catch (e) { return false; } }
+
+function enterMenu() { $("who").textContent = user; $("bAdmin").classList.toggle("hidden", !isAdmin); show("vMenu"); }
+async function login() {
+  const n = $("u").value.trim(), p = $("pw").value, err = $("loginErr");
+  err.textContent = ""; $("bLogin").disabled = true;
+  try {
+    const r = await rpc("giris", { p_ad: n, p_sifre: p });
+    TOKEN = r.token; user = r.ad; isAdmin = !!r.yonetici;
+    try { sessionStorage.setItem("sess", JSON.stringify({ t: TOKEN, u: user, a: isAdmin })); } catch (e) {}
+    await loadSettings(); $("pw").value = ""; enterMenu();
+  } catch (e) {
+    err.textContent = String(e.message).includes("hatali") ? "Kullanıcı adı veya şifre yanlış." : "Sunucuya bağlanılamadı. İnternet bağlantısını kontrol et.";
+  }
+  $("bLogin").disabled = false;
+}
+function logout() {
+  user = null; isAdmin = false; TOKEN = ""; $("who").textContent = "";
+  try { sessionStorage.removeItem("sess"); } catch (e) {}
+  $("pw").value = ""; show("vLogin");
+}
+
+function fill(sel, items, ph) {
+  sel.innerHTML = "";
+  const o = document.createElement("option"); o.value = ""; o.textContent = ph; sel.appendChild(o);
+  items.forEach(i => { const e = document.createElement("option"); e.value = i; e.textContent = i; sel.appendChild(e); });
+  sel.disabled = !items.length;
+}
+function onBrand() { const b = $("brand").value; fill($("model"), b ? Object.keys(CARS[b]) : [], "Model seç"); fill($("gen"), [], "Jenerasyon seç"); }
+function onModel() { const b = $("brand").value, m = $("model").value; fill($("gen"), b && m ? CARS[b][m] : [], "Jenerasyon seç"); }
+
+function openForm(m) {
+  mode = m;
+  $("formTitle").textContent = m === "photo" ? "Fotoğraftan kayıt" : "Elle kayıt";
+  $("photoBox").classList.toggle("hidden", m !== "photo");
+  $("plate").value = ""; $("note").value = ""; $("formMsg").textContent = ""; $("ocrMsg").textContent = "";
+  $("plateHint").textContent = m === "photo" ? "Okunan plakayı kontrol edip gerekirse düzelt." : "";
+  $("prev").classList.add("hidden"); $("cropBox").classList.add("hidden");
+  fill($("brand"), Object.keys(CARS), "Marka seç");
+  if (m === "photo" && Object.keys(CARS).length === 1) { $("brand").value = Object.keys(CARS)[0]; onBrand(); } else onBrand();
+  show("vForm");
+}
+
+async function save() {
+  const plate = $("plate").value.trim().toUpperCase().replace(/\s+/g, " ");
+  const brand = $("brand").value, model = $("model").value, gen = $("gen").value;
+  const msg = $("formMsg"); msg.className = "msg err";
+  if (!plate) { msg.textContent = "Plaka boş. Plakayı yaz."; return; }
+  if (!brand || !model || !gen) { msg.textContent = "Marka, model ve jenerasyonu seç."; return; }
+  $("bSave").disabled = true;
+  try {
+    await rpc("kayit_ekle", { tok: TOKEN, p_plate: plate, p_brand: brand, p_model: model, p_gen: gen, p_note: $("note").value.trim(), p_via: mode });
+  } catch (e) {
+    $("bSave").disabled = false;
+    if (expired(e)) return;
+    msg.textContent = "Kaydedilemedi. İnternet bağlantısını kontrol et ve tekrar dene."; return;
+  }
+  $("bSave").disabled = false;
+  msg.className = "msg ok"; msg.textContent = "Kaydedildi: " + plate;
+  setTimeout(() => show("vMenu"), 900);
+}
+
+// ---- Plaka okuma (OCR) ----
+const WL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -";
+let wk = null, stream = null;
+const clean = t => t.toUpperCase().replace(/[^A-Z0-9 -]/g, " ").replace(/\s+/g, " ").trim();
+const alnum = t => t.replace(/[^A-Z0-9]/g, "").length;
+function enhance(src) {
+  const sw = src.width || src.naturalWidth, sh = src.height || src.naturalHeight;
+  const k = Math.min(1600, Math.max(900, sw)) / sw;
+  const c = document.createElement("canvas"); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+  const x = c.getContext("2d"); x.drawImage(src, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height), p = d.data, h = new Uint32Array(256);
+  for (let i = 0; i < p.length; i += 4) { const g = (0.3 * p[i] + 0.59 * p[i + 1] + 0.11 * p[i + 2]) | 0; p[i] = g; h[g]++; }
+  const n = p.length / 4; let lo = 0, hi = 255, a = 0;
+  for (; lo < 255 && a + h[lo] < n * 0.02; lo++) a += h[lo];
+  a = 0; for (; hi > 0 && a + h[hi] < n * 0.02; hi--) a += h[hi];
+  const sc = 255 / Math.max(1, hi - lo);
+  for (let i = 0; i < p.length; i += 4) { const v = Math.max(0, Math.min(255, (p[i] - lo) * sc)); p[i] = p[i + 1] = p[i + 2] = v; }
+  x.putImageData(d, 0, 0); return c;
+}
+// Türkiye plakası: il kodu (01-81) + 1-3 harf + 2-4 rakam. Konuma göre karışan karakterleri düzeltir.
+const D2 = { O: "0", Q: "0", D: "0", I: "1", L: "1", T: "7", Z: "2", S: "5", G: "6", B: "8" };
+const L2 = { "0": "O", "1": "I", "5": "S", "8": "B", "2": "Z", "6": "G", "4": "A", "7": "T" };
+function fixTR(raw) {
+  const a = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  let best = null;
+  for (let i = 0; i < a.length; i++) for (let n = 5; n <= 9 && i + n <= a.length; n++) {
+    const t = a.substr(i, n);
+    for (let L = 1; L <= 3; L++) {
+      const Dn = n - 2 - L; if (Dn < 2 || Dn > 4) continue;
+      let ch = 0, ok = true, out = "";
+      const dig = c => /\d/.test(c) ? c : (D2[c] ? (ch++, D2[c]) : (ok = false, c));
+      const let_ = c => /[A-Z]/.test(c) ? c : (L2[c] ? (ch++, L2[c]) : (ok = false, c));
+      const p = dig(t[0]) + dig(t[1]); const l = [...t.substr(2, L)].map(let_).join(""); const d = [...t.substr(2 + L)].map(dig).join("");
+      const il = +p; if (!ok || il < 1 || il > 81 || /[QWX]/.test(l)) continue;
+      const cand = { v: p + " " + l + " " + d, ch, len: n };
+      if (!best || cand.ch < best.ch || (cand.ch === best.ch && cand.len > best.len)) best = cand;
+    }
+  }
+  return best ? best.v : "";
+}
+async function recognize(src) {
+  const m = $("ocrMsg"); m.className = "msg"; m.textContent = "Plaka okunuyor, birkaç saniye bekle...";
+  const c = enhance(src); $("prev").src = c.toDataURL("image/jpeg", 0.85); $("prev").classList.remove("hidden");
+  try {
+    if (typeof Tesseract === "undefined") throw new Error("lib");
+    if (!wk) wk = await Tesseract.createWorker("eng");
+    let best = "", raw = [], fixed = false;
+    for (const psm of ["7", "6", "11"]) {
+      await wk.setParameters({ tessedit_char_whitelist: WL, tessedit_pageseg_mode: psm });
+      const t = clean((await wk.recognize(c)).data.text); raw.push(t);
+      const f = fixTR(t);
+      if (f) { best = f; fixed = true; break; }
+      if (alnum(t) > alnum(best)) best = t;
+    }
+    if (fixed) { $("plate").value = best; m.className = "msg ok"; m.textContent = "Okundu. Plakayı kontrol et, yanlışsa düzelt."; }
+    else if (alnum(best) >= 4) { $("plate").value = best; m.className = "msg err"; m.textContent = "Plaka biçimine uymadı, dikkatle kontrol et veya elle yaz."; }
+    else { m.className = "msg err"; m.textContent = "Plaka okunamadı. Plakayı çerçeveye tam sığdır, yansıma olmasın. Olmazsa elle yaz."; }
+    const dbg = document.createElement("div"); dbg.className = "hint"; dbg.textContent = "Okunan ham yazı: " + (raw.filter(Boolean).join(" | ") || "(boş)"); m.appendChild(dbg);
+  } catch (e) {
+    m.className = "msg err"; m.textContent = "Okuma çalışmadı (internet gerekir). Plakayı elle yaz.";
+  }
+}
+async function openCam() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $("file").click(); return; }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
+  catch (e) { $("file").click(); return; }
+  $("cam").classList.remove("hidden"); const v = $("vid"); v.srcObject = stream; try { await v.play(); } catch (e) {}
+}
+function closeCam() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $("cam").classList.add("hidden"); }
+function snap() {
+  const v = $("vid"); if (!v.videoWidth) return;
+  const vr = v.getBoundingClientRect(), fr = $("frame").getBoundingClientRect();
+  const sc = Math.max(vr.width / v.videoWidth, vr.height / v.videoHeight);
+  const ox = (v.videoWidth * sc - vr.width) / 2, oy = (v.videoHeight * sc - vr.height) / 2;
+  const sx = (fr.left - vr.left + ox) / sc, sy = (fr.top - vr.top + oy) / sc, w = fr.width / sc, h = fr.height / sc;
+  const c = document.createElement("canvas"); c.width = Math.round(w); c.height = Math.round(h);
+  c.getContext("2d").drawImage(v, sx, sy, w, h, 0, 0, c.width, c.height);
+  closeCam(); recognize(c);
+}
+let cropImg = null, cropR = null, cropDrag = null;
+function showCrop(img) {
+  cropImg = img; cropR = null;
+  const cv = $("cropCv"); cv.width = 800; cv.height = Math.round(800 * img.naturalHeight / img.naturalWidth);
+  drawCrop(); $("cropBox").classList.remove("hidden"); $("prev").classList.add("hidden"); $("ocrMsg").textContent = "";
+}
+function drawCrop() {
+  const cv = $("cropCv"), x = cv.getContext("2d"), W = cv.width, H = cv.height;
+  x.drawImage(cropImg, 0, 0, W, H);
+  if (!cropR) return;
+  const { x: a, y: b, w, h } = cropR;
+  x.fillStyle = "rgba(0,0,0,.5)";
+  x.fillRect(0, 0, W, b); x.fillRect(0, b + h, W, H - b - h); x.fillRect(0, b, a, h); x.fillRect(a + w, b, W - a - w, h);
+  x.strokeStyle = "#ffd52e"; x.lineWidth = 5; x.strokeRect(a, b, w, h);
+}
+function cropPos(e) { const cv = $("cropCv"), r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; }
+function readCrop() {
+  if (!cropR || cropR.w < 30 || cropR.h < 12) { $("ocrMsg").className = "msg err"; $("ocrMsg").textContent = "Önce plakanın etrafına bir kutu çiz."; return; }
+  const k = cropImg.naturalWidth / $("cropCv").width, c = document.createElement("canvas");
+  c.width = Math.round(cropR.w * k); c.height = Math.round(cropR.h * k);
+  c.getContext("2d").drawImage(cropImg, cropR.x * k, cropR.y * k, c.width, c.height, 0, 0, c.width, c.height);
+  $("cropBox").classList.add("hidden"); recognize(c);
+}
+async function readPlate(file) {
+  const img = new Image(); img.src = URL.createObjectURL(file);
+  try { await img.decode(); } catch (e) { $("ocrMsg").className = "msg err"; $("ocrMsg").textContent = "Fotoğraf açılamadı."; return; }
+  showCrop(img);
+}
+
+// ---- Kayıtlar ----
+const tr = s => s.toLocaleLowerCase("tr");
+let recCache = [];
+async function loadRecs() {
+  const box = $("recs"); box.textContent = "Yükleniyor...";
+  try {
+    const rows = await rpc("kayit_listele", { tok: TOKEN });
+    recCache = (rows || []).map(r => ({ plate: r.plate, brand: r.brand, model: r.model, gen: r.gen, note: r.note, by: r.kaydeden, at: r.tarih }));
+  } catch (e) { if (expired(e)) return; box.textContent = "Kayıtlar alınamadı. İnternet bağlantısını kontrol et."; return; }
+  draw();
+}
+function draw() {
+  const q = tr($("q").value.trim()), box = $("recs"), a = recCache.filter(r => !q || tr(r.plate + " " + (r.note || "")).includes(q));
+  box.innerHTML = "";
+  if (!a.length) { box.textContent = q ? "Eşleşen kayıt yok." : "Henüz kayıt yok. Menüden araç ekle."; return; }
+  a.forEach(r => {
+    const d = document.createElement("div"); d.className = "rec";
+    const p = document.createElement("div"); p.className = "p"; p.textContent = r.plate;
+    const l = document.createElement("div"); l.textContent = r.brand + " " + r.model + " " + r.gen;
+    const n = document.createElement("div"); n.textContent = r.note || "";
+    const s = document.createElement("small"); s.textContent = new Date(r.at).toLocaleString("tr-TR") + " · " + r.by;
+    d.append(p, l, n, s); box.appendChild(d);
+  });
+}
+function csv() {
+  const esc = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const rows = [["Plaka", "Marka", "Model", "Jenerasyon", "Not", "Kaydeden", "Tarih"]].concat(recCache.map(r => [r.plate, r.brand, r.model, r.gen, r.note, r.by, r.at]));
+  const b = new Blob(["\ufeff" + rows.map(r => r.map(esc).join(";")).join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "kayitlar.csv"; a.click();
+}
+
+// ---- Yönetim paneli ----
+async function loadUsers() {
+  try { USERS = (await rpc("kullanici_listele", { tok: TOKEN })) || []; } catch (e) { if (expired(e)) return; }
+  adminRender();
+}
+function adminRender() {
+  const ul = $("uList"); ul.innerHTML = "";
+  USERS.forEach(u => {
+    const d = document.createElement("div"); d.className = "rec"; d.style.display = "flex"; d.style.justifyContent = "space-between"; d.style.alignItems = "center";
+    const t = document.createElement("span"); t.textContent = u.ad + (u.yonetici ? " (yönetici)" : "");
+    d.appendChild(t);
+    if (tr(u.ad) !== tr(user)) {
+      const b = document.createElement("button"); b.className = "btn ghost"; b.style.cssText = "width:auto;margin:0;padding:10px 16px;font-size:17px;min-height:48px"; b.textContent = "Sil";
+      b.onclick = async () => {
+        if (!confirm(u.ad + " silinsin mi?")) return;
+        try { await rpc("kullanici_sil", { tok: TOKEN, p_ad: u.ad }); await loadUsers(); } catch (e) { if (!expired(e)) alert("Silinemedi. İnternet bağlantısını kontrol et."); }
+      };
+      d.appendChild(b);
+    }
+    ul.appendChild(d);
+  });
+  const dl = $("dlB"); dl.innerHTML = "";
+  Object.keys(CARS).forEach(b => { const o = document.createElement("option"); o.value = b; dl.appendChild(o); });
+  const cl = $("cList"); cl.innerHTML = ""; const f = tr($("cFilter").value.trim());
+  Object.keys(CARS).forEach(b => Object.keys(CARS[b]).forEach(m => {
+    if (f && !tr(b + " " + m).includes(f)) return;
+    const d = document.createElement("div"); d.className = "rec";
+    const h = document.createElement("div"); h.style.cssText = "display:flex;justify-content:space-between;align-items:center;font-weight:600";
+    const t = document.createElement("span"); t.textContent = b + " " + m;
+    const x = document.createElement("button"); x.className = "btn ghost"; x.style.cssText = "width:auto;margin:0;padding:10px 16px;font-size:17px;min-height:48px"; x.textContent = "Modeli sil";
+    x.onclick = () => delCar(b, m, null);
+    h.append(t, x); d.appendChild(h);
+    const g = document.createElement("div"); g.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin-top:6px";
+    CARS[b][m].forEach(gen => {
+      const c = document.createElement("button"); c.className = "btn ghost"; c.style.cssText = "width:auto;margin:0;padding:10px 14px;font-size:17px;min-height:46px";
+      c.textContent = gen + " ×"; c.onclick = () => delCar(b, m, gen); g.appendChild(c);
+    });
+    d.appendChild(g); cl.appendChild(d);
+  }));
+}
+async function delCar(b, m, g) {
+  if (!confirm(g ? b + " " + m + " " + g + " silinsin mi?" : b + " " + m + " modeli (tüm jenerasyonlar) silinsin mi?")) return;
+  (g ? [g] : CARS[b][m].slice()).forEach(x => { const k = b + "|" + m + "|" + x; if (!DEL.includes(k)) DEL.push(k); });
+  applyDel();
+  const ok1 = await push("del", DEL), ok2 = await push("cars", CARS);
+  if (!ok1 || !ok2) alert("Sunucuya kaydedilemedi, internet bağlantısını kontrol et.");
+  adminRender();
+}
+function modelHints() {
+  const dl = $("dlM"); dl.innerHTML = "";
+  const b = Object.keys(CARS).find(k => tr(k) === tr($("cBrand").value.trim()));
+  if (b) Object.keys(CARS[b]).forEach(m => { const o = document.createElement("option"); o.value = m; dl.appendChild(o); });
+}
+async function addUser() {
+  const n = $("aName").value.trim(), p = $("aPass").value.trim(), m = $("uMsg"); m.className = "msg err";
+  if (!n || !p) { m.textContent = "Kullanıcı adı ve şifre boş olamaz."; return; }
+  try { await rpc("kullanici_ekle", { tok: TOKEN, p_ad: n, p_sifre: p, p_yonetici: $("aIsAdmin").checked }); }
+  catch (e) {
+    if (expired(e)) return;
+    const t = String(e.message); m.textContent = t.includes("var") ? "Bu kullanıcı adı zaten var." : t.includes("kisa") ? "Ad en az 2, şifre en az 4 karakter olmalı." : "Eklenemedi. İnternet bağlantısını kontrol et.";
+    return;
+  }
+  m.className = "msg ok"; m.textContent = n + " eklendi.";
+  $("aName").value = ""; $("aPass").value = ""; $("aIsAdmin").checked = false; loadUsers();
+}
+async function addCar() {
+  const m = $("cMsg"); m.className = "msg err";
+  let b = $("cBrand").value.trim(), mo = $("cModel").value.trim();
+  const gens = $("cGen").value.split(",").map(x => x.trim()).filter(Boolean);
+  if (!b || !mo || !gens.length) { m.textContent = "Marka, model ve jenerasyonu doldur."; return; }
+  b = Object.keys(CARS).find(k => tr(k) === tr(b)) || b;
+  CARS[b] = CARS[b] || {};
+  mo = Object.keys(CARS[b]).find(k => tr(k) === tr(mo)) || mo;
+  CARS[b][mo] = CARS[b][mo] || [];
+  gens.forEach(g => {
+    DEL = DEL.filter(k => tr(k) !== tr(b + "|" + mo + "|" + g));
+    if (!CARS[b][mo].some(x => tr(x) === tr(g))) CARS[b][mo].push(g);
+  });
+  const ok1 = await push("del", DEL), ok2 = await push("cars", CARS);
+  if (!ok1 || !ok2) { m.textContent = "Sunucuya kaydedilemedi. İnternet bağlantısını kontrol et."; return; }
+  m.className = "msg ok"; m.textContent = b + " " + mo + " eklendi.";
+  $("cModel").value = ""; $("cGen").value = ""; adminRender();
+}
+
+$("bLogin").onclick = login;
+$("showPw").onchange = e => { $("pw").type = e.target.checked ? "text" : "password"; };
+$("pw").onkeydown = e => { if (e.key === "Enter") login(); };
+$("bOut").onclick = logout;
+$("bManual").onclick = () => openForm("manual");
+$("bPhoto").onclick = () => { openForm("photo"); openCam(); };
+$("bShoot").onclick = openCam;
+$("bGallery").onclick = () => $("file").click(); $("bRead").onclick = readCrop;
+$("cropCv").onpointerdown = e => { e.target.setPointerCapture(e.pointerId); cropDrag = cropPos(e); cropR = null; };
+$("cropCv").onpointermove = e => { if (!cropDrag) return; const p = cropPos(e); cropR = { x: Math.min(cropDrag.x, p.x), y: Math.min(cropDrag.y, p.y), w: Math.abs(p.x - cropDrag.x), h: Math.abs(p.y - cropDrag.y) }; drawCrop(); };
+$("cropCv").onpointerup = () => { cropDrag = null; };
+$("bSnap").onclick = snap; $("bCamX").onclick = closeCam;
+$("file").onchange = e => { if (e.target.files[0]) readPlate(e.target.files[0]); e.target.value = ""; };
+$("brand").onchange = onBrand; $("model").onchange = onModel;
+$("bSave").onclick = save;
+$("bBack").onclick = $("bBack2").onclick = () => show("vMenu");
+$("bList").onclick = () => { $("q").value = ""; show("vList"); loadRecs(); };
+$("q").oninput = draw;
+$("bCsv").onclick = csv;
+$("bAdmin").onclick = () => { show("vAdmin"); adminRender(); loadUsers(); };
+$("bAddUser").onclick = addUser; $("bAddCar").onclick = addCar;
+$("cBrand").oninput = modelHints; $("cFilter").oninput = adminRender; $("bBack3").onclick = () => show("vMenu");
+
+(async () => {
+  try {
+    const x = JSON.parse(sessionStorage.getItem("sess") || "null");
+    if (x && x.t) { TOKEN = x.t; user = x.u; isAdmin = !!x.a; await loadSettings(); enterMenu(); return; }
+  } catch (e) { TOKEN = ""; }
+  show("vLogin");
+})();
+</script>
+</body>
+</html>
